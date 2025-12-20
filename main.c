@@ -23,6 +23,7 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<stdbool.h>
+#include<string.h>
 #include<math.h>
 
 #include "raylib.h"
@@ -30,14 +31,19 @@
 #define TILE_SIZE 80
 #define BOARD_SIZE 8
 #define BUFFER_SIZE 128
+#define MOVE_CIRCLE_RADIUS 10
+#define CAPTURE_CIRCLE_RADIUS (((TILE_SIZE) / 2) - 5)
 
 #define TILE_LIGHT GetColor(0xEEEED2FF)
 #define TILE_DARK  GetColor(0x769656FF)
+#define MOVE_CIRCLE_COLOR Fade(GetColor(0x252525FF), 0.5f)
+#define CHECK_COLOR Fade(RED,0.6f)
+#define SELECTED_TILE Fade(YELLOW, 0.4f)
 
 /**
  * PieceType enum: represents all possible chess pieces
  */
-typedef enum{
+typedef enum PieceType{
     EMPTY,
     PAWN,
     ROOK,
@@ -50,7 +56,7 @@ typedef enum{
 /**
  * PieceColor enum: represents piece Colors. White moves First
  */
-typedef enum{
+typedef enum PieceColor{
     WHITE_PIECE,
     BLACK_PIECE,
     NONE_PIECE
@@ -67,7 +73,7 @@ typedef enum{
  * forward from its starting position, landing right beside it,
  * as if the opponent's pawn had only moved one square
  */
-typedef struct{
+typedef struct Piece{
     PieceType type;
     PieceColor color;
     bool moved;
@@ -114,8 +120,14 @@ int main(void){
     InitWindow(BOARD_SIZE * TILE_SIZE + 240,BOARD_SIZE * TILE_SIZE,"Chess- Faseeh-Ur-Rehman");
     SetTargetFPS(60);
 
+    LoadAssets();
+    InitBoard();
 
+    while(!WindowShouldClose()){
 
+    }
+
+    UnloadAssets();
     CloseWindow();
     return EXIT_SUCCESS;
 }
@@ -124,37 +136,225 @@ int main(void){
 // ASSET MANAGEMENT FUNCTIONS
 //===========================================================================
 
+/**
+ * @brief Loads all piece textures from /assets/PNG
+ * File Path follow pattern: assets/PNG/{color}_{piece}.png
+ */
 void LoadAssets(void){
+    const char* names[] = {"", "pawn", "rook", "knight", "bishop", "queen", "king"};
+    char path[BUFFER_SIZE];
 
+    for(int i = 0 ; i < 7 ; i++){
+        sprintf(path, "assets/PNG/white_%s",names[i]);
+        pieceTextures[0][i] = LoadTexture(path);
+
+        sprintf(path, "assets/PNG/black_%s",names[i]);
+        pieceTextures[1][i] = LoadTexture(path);
+    }
 }
-void UnloadAssets(void){
 
+/**
+ * @brief Releases all Loaded Textures.
+ * Unloads texture from pieceTexture 2D array
+ */
+void UnloadAssets(void){
+    for(int i = 0 ; i < 7 ; i++){
+        UnloadTexture(pieceTextures[0][i]);
+        UnloadTexture(pieceTextures[1][i]);
+    }
 }
 
 //===========================================================================
 // BOARD INITIALIZATION FUNCTION
 //===========================================================================
 
+/**
+ * @brief Set Up Standard chess Sarting position
+ *
+ * Chess Board Setup:
+ *  0 | r n b q k b n r
+ *  1 | p p p p p p p p
+ *  2 |
+ *  3 |
+ *  4 |
+ *  5 |
+ *  6 | P P P P P P P P
+ *  7 | R N B Q K B N R
+ */
 void InitBoard(void){
+    memset(board, EMPTY, sizeof(board));
 
+    board[0][0] = (Piece){ROOK, BLACK_PIECE, false, false};
+    board[0][1] = (Piece){KNIGHT, BLACK_PIECE, false, false};
+    board[0][2] = (Piece){BISHOP, BLACK_PIECE, false, false};
+    board[0][3] = (Piece){QUEEN, BLACK_PIECE, false, false};
+    board[0][4] = (Piece){KING, BLACK_PIECE, false, false};
+    board[0][5] = (Piece){BISHOP, BLACK_PIECE, false, false};
+    board[0][6] = (Piece){KNIGHT, BLACK_PIECE, false, false};
+    board[0][7] = (Piece){ROOK, BLACK_PIECE, false, false};
+
+    board[7][0] = (Piece){ROOK, WHITE_PIECE, false, false};
+    board[7][1] = (Piece){KNIGHT, WHITE_PIECE, false, false};
+    board[7][2] = (Piece){BISHOP, WHITE_PIECE, false, false};
+    board[7][3] = (Piece){QUEEN, WHITE_PIECE, false, false};
+    board[7][4] = (Piece){KING, WHITE_PIECE, false, false};
+    board[7][5] = (Piece){BISHOP, WHITE_PIECE, false, false};
+    board[7][6] = (Piece){KNIGHT, WHITE_PIECE, false, false};
+    board[7][7] = (Piece){ROOK, WHITE_PIECE, false, false};
+
+
+    for(int col = 0 ; col < BOARD_SIZE ; col++){
+        board[1][col] = (Piece){PAWN, BLACK_PIECE, false, false};
+        board[6][col] = (Piece){PAWN, WHITE_PIECE, false, false};
+    }
+
+    for(int i = 2; i < BOARD_SIZE - 2 ; i++){
+        for(int j = 0 ; j < BOARD_SIZE ; j++){
+            board[i][j] = (Piece){EMPTY, NONE_PIECE, false, false};
+        }
+    }
+
+    ResetEnPassant();
 }
 
 //===========================================================================
 // RENDERING FUNCTIONS
 //===========================================================================
 
+/**
+ * @brief Renders the Chess Board with selection Highlights
+ * Renders 64 squares with alternating colors and visual feedback for:
+ * - Selected Square (Yellow Highlights)
+ * - Valid Moves (circles for empty squares, rings for captures)
+ */
 void DrawBoard(void){
 
-}
-void DrawPieces(void){
+    for(int i = 0 ; i < BOARD_SIZE ; i++){
+        for(int j = 0 ; j < BOARD_SIZE ; j++){
 
+            Color tile_color = !((i + j) % 2) ? TILE_LIGHT : TILE_DARK;
+            DrawRectangle(i * TILE_SIZE, j * TILE_SIZE, TILE_SIZE, TILE_SIZE, tile_color);
+
+            if(selectedRow != -1 && IsValidMove(selectedRow, selectedCol, i , j)){
+                if(!TestMoveForCheck(board[selectedRow][selectedCol].color, selectedRow, selectedCol, i , j)){
+
+                    int positionX = (i * TILE_SIZE) + TILE_SIZE / 2;
+                    int positionY = (i * TILE_SIZE) + TILE_SIZE / 2;
+
+                    if(board[i][j].type == EMPTY)
+                        DrawCircle(positionX, positionY, MOVE_CIRCLE_RADIUS, MOVE_CIRCLE_COLOR);
+                    else
+                        DrawCircleLines(positionX,positionY,CAPTURE_CIRCLE_RADIUS, MOVE_CIRCLE_COLOR);
+                }
+            }
+
+            if(i == selectedRow && j == selectedCol)
+                DrawRectangle(i * TILE_SIZE, j * TILE_SIZE, TILE_SIZE, TILE_SIZE, SELECTED_TILE);
+        }
+    }
+}
+
+/**
+ * @brief Render all pieces on the board
+ * Incudes special highlighting for kings in Check
+ */
+void DrawPieces(void){
+    bool wCheck = IsInCheck(WHITE_PIECE);
+    bool bCheck = IsInCheck(BLACK_PIECE);
+
+    for(int i = 0 ; i < BOARD_SIZE ; i++){
+        for(int j = 0 ; j < BOARD_SIZE ; j++){
+            Piece p = board[i][j];
+
+            if(p.type == EMPTY)
+                continue;
+
+            if(p.type == KING){
+
+                if((p.color == WHITE_PIECE && wCheck) || (p.color == BLACK_PIECE && bCheck)){
+                    DrawRectangle(j * TILE_SIZE, i * TILE_SIZE, TILE_SIZE, TILE_SIZE, CHECK_COLOR);
+                }
+            }
+
+
+            int colorID = (p.color == WHITE_PIECE) ? 0 : 1;
+            Texture2D texture = pieceTextures[colorID][p.type];
+
+            float scale = (float)TILE_SIZE / (float)texture.width * 0.85f;
+
+            Vector2 pos = {
+                i * TILE_SIZE + (TILE_SIZE - texture.width * scale) / 2,
+                j * TILE_SIZE + (TILE_SIZE - texture.width * scale) / 2
+            };
+
+            DrawTextureEx(texture, pos, 0, scale, WHITE);
+
+
+        }
+    }
 }
 
 //===========================================================================
 // INPUT HANDLING FUNCTION
 //===========================================================================
 
+/**
+ * @brief Process mouse input for piece selection and movement
+ * Implements two-step interaction: select piece -> select destination
+ */
 void HandleInput(void){
+
+    if(gameOver)
+        return false;
+
+    if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+
+        int col = GetMouseX() / TILE_SIZE;
+        int row = GetMouseY() / TILE_SIZE;
+
+        if (col >= 8 || row >= 8) {
+            selectedRow = -1;
+            return;
+        }
+
+        if (selectedRow == -1) {
+
+            if (board[row][col].color == turn) {
+                selectedRow = row;
+                selectedCol = col;
+            }
+        }
+        else{
+
+            if(board[row][col].color == turn){
+
+                selectedRow = row;
+                selectedCol = col;
+            }
+            else if(MovePiece(selectedRow, selectedCol, row, col)){
+
+                turn = (turn == WHITE_PIECE) ? BLACK_PIECE : WHITE_PIECE;
+
+                if (IsCheckmate(turn)) {
+
+                    gameOver = true;
+                    sprintf(gameResult, "Checkmate! %s Wins",
+                            (turn == BLACK_PIECE ? "White" : "Black"));
+                }
+                else if(!HasAnyValidMove(turn)){
+
+                    gameOver = true;
+                    strcpy(gameResult, "Stalemate! Draw");
+                }
+
+                selectedRow = -1;
+            }
+            else
+                selectedRow = -1;
+
+        }
+
+    }
 
 }
 
@@ -162,8 +362,99 @@ void HandleInput(void){
 // MOVE VALIDATION FUNCTIONS
 //===========================================================================
 
+/**
+ * @brief Validates move according to chess piece rules (FIDE rules)
+ * Performs basic validation without considering King Safety
+ *
+ * @param sr Source Row
+ * @param sc Source Column
+ * @param dr Destination Row
+ * @param dc Destination Column
+ *
+ * @return true if move follows piece movement rules
+ */
 bool IsValidMove(int sr, int sc, int dr, int dc){
 
+    if(dr < 0 || dr >= BOARD_SIZE || dc < 0 || dc >= BOARD_SIZE)
+        return false;
+
+    if(sr == dr && sc == dc)
+        return false;
+
+    Piece p = board[sr][sc];
+    if(board[dr][dc].color == p.color)
+        return false;
+
+    int rDiff = dr - sr;
+    int cDiff = dc - sc;
+
+    switch(p.type){
+        case PAWN:{
+            int dir = (p.color == WHITE_PIECE) ? -1 : 1;
+
+            if(!cDiff && rDiff == dir && board[dr][dc].type == EMPTY)
+                return true;
+
+            if(!p.moved && !cDiff && rDiff == 2 * dir && board[dr][dc].type == EMPTY && board[sr + dir][sc].type == EMPTY )
+                return true;
+
+            if(abs(cDiff) == 1 && rDiff == dir){
+
+                if(board[dr][dc].type != EMPTY)
+                    return true;
+
+                if (dr == enPassantTargetRow && dc == enPassantTargetCol && p.color != enPassantPawnColor){
+
+                    int pawnRow = (p.color == WHITE_PIECE) ? dr + 1 : dr - 1;
+                    if (pawnRow >= 0 && pawnRow < BOARD_SIZE && board[pawnRow][dc].type == PAWN && board[pawnRow][dc].color != p.color){
+                        return true;
+
+                    }
+                }
+            }
+
+            return false;
+            ;}
+        case ROOK:{
+            return (sr == dr || sc == dc && IsPathClear(sr, sc, dr, dc));
+            }
+        case KNIGHT:{
+            return ((abs(rDiff) == 2) && (abs(cDiff) == 1)) || ((abs(rDiff) == 1) && (abs(cDiff) == 2));
+        }
+        case BISHOP:{
+            return (abs(rDiff) == abs(cDiff) && IsPathClear(sr, sc, dr, dc));
+        }
+        case QUEEN:{
+            return (sr == dr || sc == dc || abs(rDiff) == abs(cDiff)) && (IsPathClear(sr, sc, dr, dc));
+        }
+        case KING:{
+            if(abs(rDiff) <= 1 && abs(cDiff) <= 1)
+                return true;
+
+
+            if(!p.moved && !rDiff && abs(cDiff) == 2){
+                int rookCol = (cDiff > 0) ? 7 : 0;
+
+                /* Castling Conditions
+                1_ Rook Hasn't moved
+                2_ Path is clear
+                3_ King not currently in check
+                4_ King doesn't pass through attacked squares
+                */
+
+                if(board[sr][rookCol].type == ROOK && !board[sr][rookCol].moved && IsPathClear(sr, sc, sr, rookCol)){
+
+                    if(IsInCheck(p.color)) return false;
+
+                    return !TestMoveForCheck(p.color, sr, sc, sr, sc + (cDiff > 0 ? 1 : -1));
+                }
+            }
+            return false;
+
+            }
+        default:
+            return false;
+    }
 }
 bool MovePiece(int sr, int sc, int dr, int dc){
 
@@ -180,9 +471,60 @@ bool IsCheckMate(PieceColor Color){
 bool IsPathClear(int sr, int sc, int dr, int dc){
 
 }
+
+/**
+ * @brief Simulate move to check if it leaves king in check
+ * Uses temporary board modification to test move consequences
+ *
+ * @param color Color of moving Player
+ * @param sr Source Row
+ * @param sc Source Column
+ * @param dr Destination Row
+ * @param dc Destination Column
+ *
+ * @return true if move would leave king in check
+ */
 bool TestMoveForCheck(PieceColor color, int sr, int sc, int dr, int dc){
+    Piece src = board[sr][sc];
+    Piece dest = board[dr][dc];
+
+    Piece capturedPawn = {EMPTY, NONE_PIECE, false, false};
+
+    int capturedRow = -1, capturedCol = -1;
+
+    bool isEP = (src.type == PAWN && dr == enPassantTargetRow && dc == enPassantTargetCol && src.color != enPassantPawnColor);
+
+    if(isEP){
+        capturedRow = (src.color == WHITE_PIECE) ? dr + 1 : dr - 1;
+        capturedCol = dc;
+        capturedPawn = board[capturedRow][capturedCol];
+        board[capturedRow][capturedCol] = (Piece){EMPTY, NONE_PIECE, false, false};
+    }
+
+    board[dr][dc] = src;
+    board[sr][sc] = (Piece){EMPTY, NONE_PIECE, false, false};
+
+    bool inCheck = IsInCheck(color);
+
+    board[sr][sc] = src;
+    board[dr][dc] = dest;
+
+    if(isEP){
+        board[capturedRow][capturedCol] = capturedPawn;
+    }
+
+    return inCheck;
 
 }
+
+/**
+ * @brief Clear en Passant tracking variables
+ * Called after each move (except when a pawn moves two squares)
+ */
 void ResetEnPassant(void){
+
+    enPassantTargetRow = -1;
+    enPassantTargetCol = -1;
+    enPassantPawnColor = NONE_PIECE;
 
 }
