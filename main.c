@@ -456,8 +456,63 @@ bool IsValidMove(int sr, int sc, int dr, int dc){
             return false;
     }
 }
+
+/**
+ * @brief Executes a move with all side effects
+ * Performs safety check, handles special moves, updates board states
+ *
+ * @param sr Source Row
+ * @param sc Source Column
+ * @param dr Destination Row
+ * @param dc Destination Column
+ *
+ * @returns true if move was successfully executed
+ */
 bool MovePiece(int sr, int sc, int dr, int dc){
 
+    if(!IsValidMove(sr, sc, dr, dc)) return false;
+
+    Piece p = board[sr][sc];
+
+    if(TestMoveForCheck(p.color, sr, sc, dr, dc)) return false;
+
+    bool isEnPassantCapture = (p.type == PAWN && dr == enPassantTargetRow && dc == enPassantTargetCol && p.color != enPassantPawnColor);
+
+    if(isEnPassantCapture){
+        int captureRow = (p.color == WHITE_PIECE) ? dr + 1: dr - 1;
+        board[captureRow][dc] = (Piece){EMPTY, NONE_PIECE, false, false};
+    }
+
+    if(p.type == PAWN && abs(dr - sr) == 2){
+        enPassantTargetRow = (sr + dr) / 2;
+        enPassantTargetCol = sc;
+        enPassantPawnColor = p.color;
+    }
+    else{
+        ResetEnPassant();
+    }
+
+    if(p.type == PAWN){
+        if((p.color == WHITE_PIECE && dr == 0) || (p.color == BLACK_PIECE && dr == 7))
+            p.type = QUEEN;
+    }
+
+    if(p.type == KING && abs(dc - sc) == 2){
+
+        int rookCol = (dc > sc) ? 7 : 0;
+        int newRookCol = (dc > sc) ? dc - 1 : dc + 1;
+
+        board[dr][newRookCol] = board[sr][rookCol];
+        board[dr][newRookCol].moved = true;
+
+        board[sr][rookCol] = (Piece){EMPTY, NONE_PIECE, false, false};
+    }
+
+    p.moved = true;
+    board[dr][dc] = p;
+    board[sr][sc] = (Piece){EMPTY, NONE_PIECE, false, false};
+
+    return true;
 }
 bool IsInCheck(PieceColor color){
 
