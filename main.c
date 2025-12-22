@@ -115,21 +115,89 @@ bool IsPathClear(int source_row, int source_column, int destination_row, int des
 bool TestMoveForCheck(PieceColor color, int source_row, int source_column, int destination_row, int destination_column);
 void ResetEnPassant(void);
 
-int main(void){
+int main(void) {
 
-    InitWindow(BOARD_SIZE * TILE_SIZE + 240,BOARD_SIZE * TILE_SIZE,"Chess- Faseeh-Ur-Rehman");
+    InitWindow(BOARD_SIZE * TILE_SIZE + 240, BOARD_SIZE * TILE_SIZE, 
+               "Chess - Faseeh Ur Rehman");
     SetTargetFPS(60);
 
     LoadAssets();
     InitBoard();
 
-    while(!WindowShouldClose()){
+    while (!WindowShouldClose()) {
 
+        HandleInput();
+        BeginDrawing();
+        ClearBackground(GetColor(0x181818FF));
+        DrawBoard();
+        DrawPieces();
+
+        int sideX = BOARD_SIZE * TILE_SIZE;
+
+        DrawRectangle(sideX, 0, 240, BOARD_SIZE * TILE_SIZE, GetColor(0x252525FF));
+        DrawRectangle(sideX, 0, 5, BOARD_SIZE * TILE_SIZE, GetColor(0x333333FF));
+
+        // Title section
+        DrawText("PROJECT CHESS", sideX + 30, 30, 22, GetColor(0x69923EFF));
+        DrawRectangle(sideX + 40, 60, 140, 2, DARKGRAY);
+
+
+        DrawText("CURRENT MOVE", sideX + 30, 100, 14, LIGHTGRAY);
+
+        Color cardColor = (turn == WHITE_PIECE) ? RAYWHITE : GetColor(0x383838FF);
+        Color textColor = (turn == WHITE_PIECE) ? BLACK : RAYWHITE;
+
+        DrawRectangleRounded((Rectangle){sideX + 25, 125, 190, 80}, 0.2, 10, 
+                           Fade(BLACK, 0.3f));
+        DrawRectangleRounded((Rectangle){sideX + 20, 120, 190, 80}, 0.2, 10, cardColor);
+
+        const char* turnText = (turn == WHITE_PIECE) ? "WHITE" : "BLACK";
+        int tw = MeasureText(turnText, 28);
+        DrawText(turnText, sideX + 20 + (190 - tw) / 2, 145, 28, textColor);
+
+
+        if (IsInCheck(turn)) {
+
+            float pulse = (sinf(GetTime() * 10.0f) * 0.5f) + 0.5f;
+            DrawRectangleRounded((Rectangle){sideX + 50, 215, 130, 30}, 0.5, 10, Fade(RED, 0.2f + (pulse * 0.3f)));
+            DrawText("KING IN CHECK", sideX + 65, 224, 12, RED);
+        }
+
+        if (gameOver) {
+            DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.6f));
+
+            Rectangle resBox = { sideX - 450, 200, 400, 200 };
+            DrawRectangleRounded(resBox, 0.1, 10, GetColor(0x202020FF));
+            DrawRectangleRoundedLines(resBox, 0.1, 10, TILE_DARK);
+
+            DrawText("GAME OVER", resBox.x + 110, resBox.y + 30, 30, TILE_DARK);
+
+            int resW = MeasureText(gameResult, 20);
+            DrawText(gameResult, resBox.x + (400 - resW) / 2, resBox.y + 80, 20, RAYWHITE);
+
+            Rectangle btn = { resBox.x + 100, resBox.y + 130, 200, 45 };
+            bool hover = CheckCollisionPointRec(GetMousePosition(), btn);
+            DrawRectangleRounded(btn, 0.2, 10, hover ? TILE_DARK : DARKGRAY);
+            DrawText("PLAY AGAIN", btn.x + 45, btn.y + 12, 18, hover ? BLACK : RAYWHITE);
+
+            if (hover && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                InitBoard();
+                turn = WHITE_PIECE;
+                gameOver = false;
+                selectedRow = -1;
+                ResetEnPassant();
+            }
+        } else {
+            DrawText("L-Click: Select/Move", sideX + 35, BOARD_SIZE * TILE_SIZE - 60, 14, WHITE);
+            DrawText("R-Click: Deselect", sideX + 45, BOARD_SIZE * TILE_SIZE - 40, 14, WHITE);
+        }
+
+        EndDrawing();
     }
 
     UnloadAssets();
     CloseWindow();
-    return EXIT_SUCCESS;
+    return 0;
 }
 
 //===========================================================================
@@ -514,17 +582,108 @@ bool MovePiece(int sr, int sc, int dr, int dc){
 
     return true;
 }
+/**
+ * @brief Determine if specified king is in check
+ *
+ * @param color color of king to check
+ *
+ * @return true if king is under attack
+ */
 bool IsInCheck(PieceColor color){
+    int kr = -1, kc = -1;
+
+    for(int i = 0; i < 8 ; i++){
+        for(int j = 0 ; j < 8 ; j++){
+            if(board[i][j].type == KING && board[i][j].color == color){
+                kr = i;
+                kc = j;
+                break;
+            }
+        }
+        if(kr != -1) break;
+    }
+
+    for (int i = 0; i < 8; i++) {
+        for (int j = 0; j < 8; j++) {
+            Piece p = board[i][j];
+
+            if (p.type == EMPTY || p.color == color) continue;
+
+            if (p.type == PAWN) {
+                int dir = (p.color == WHITE_PIECE) ? -1 : 1;
+
+                if(i + dir == kr && abs(j - kc) == 1)
+                    return true;
+            }
+            else if(IsValidMove(i, j, kr, kc)){
+                return true;
+            }
+        }
+    }
+
+    return false;
 
 }
+
+/**
+ * @brief Check if player has any legal moves
+ *
+ * @param color Player color to check
+ *
+ * @return true if at least one legal move exists
+ */
 bool HasAnyValidMove(PieceColor color){
 
-}
-bool IsCheckMate(PieceColor Color){
+    for(int i = 0; i < 8; i++){
+        for(int j = 0; j < 8; j++){
+            if(board[i][j].color == color){
 
+                for(int dr = 0; dr < 8; dr++){
+                    for(int dc = 0; dc < 8; dc++){
+
+                        if (IsValidMove(i, j, dr, dc) && !TestMoveForCheck(color, i, j, dr, dc)){
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return false;
 }
+
+/**
+ * @brief Determine if player is in check
+ *
+ * @param color Player color to check
+ *
+ * @return true if player is checkmated
+ */
+bool IsCheckMate(PieceColor color){
+    return IsInCheck(color) && !HasAnyValidMove(color);
+}
+
+/**
+ * @brief  Check if path between two squares is unobstructed
+ *
+ * @param sr Source row
+ * @param sc Source column
+ * @param dr Destination row
+ * @param dc Destination column
+ *
+ * @return true if all intermediate squares are empty
+ */
 bool IsPathClear(int sr, int sc, int dr, int dc){
 
+    int rs = (dr > sr) ? 1 : (dr < sr) ? -1 : 0;
+    int cs = (dc > sc) ? 1 : (dc < sc) ? -1 : 0;
+
+    for (int r = sr + rs, c = sc + cs; r != dr || c != dc; r += rs, c += cs) {
+        if (board[r][c].type != EMPTY)
+            return false;
+    }
+
+    return true;
 }
 
 /**
