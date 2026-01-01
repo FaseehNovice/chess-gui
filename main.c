@@ -208,15 +208,17 @@ int main(void) {
  * @brief Loads all piece textures from /assets/PNG
  * File Path follow pattern: assets/PNG/{color}_{piece}.png
  */
-void LoadAssets(void){
-    const char* names[] = {"", "pawn", "rook", "knight", "bishop", "queen", "king"};
-    char path[BUFFER_SIZE];
+void LoadAssets(){
+    const char* names[] = { "", "pawn", "rook", "knight", "bishop", "queen", "king" };
+    char path[128];
 
-    for(int i = 0 ; i < 7 ; i++){
-        sprintf(path, "assets/PNG/white_%s",names[i]);
+    for (int i = 1; i <= 6; i++) {
+        // White pieces
+        sprintf(path, "assets/PNG/white_%s.png", names[i]);
         pieceTextures[0][i] = LoadTexture(path);
 
-        sprintf(path, "assets/PNG/black_%s",names[i]);
+        // Black pieces
+        sprintf(path, "assets/PNG/black_%s.png", names[i]);
         pieceTextures[1][i] = LoadTexture(path);
     }
 }
@@ -373,7 +375,7 @@ void DrawPieces(void){
 void HandleInput(void){
 
     if(gameOver)
-        return false;
+        return;
 
     if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
 
@@ -403,7 +405,7 @@ void HandleInput(void){
 
                 turn = (turn == WHITE_PIECE) ? BLACK_PIECE : WHITE_PIECE;
 
-                if (IsCheckmate(turn)) {
+                if (IsCheckMate(turn)) {
 
                     gameOver = true;
                     sprintf(gameResult, "Checkmate! %s Wins",
