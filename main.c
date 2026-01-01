@@ -227,8 +227,8 @@ void LoadAssets(){
  * @brief Releases all Loaded Textures.
  * Unloads texture from pieceTexture 2D array
  */
-void UnloadAssets(void){
-    for(int i = 0 ; i < 7 ; i++){
+void UnloadAssets() {
+    for (int i = 1; i <= 6; i++) {
         UnloadTexture(pieceTextures[0][i]);
         UnloadTexture(pieceTextures[1][i]);
     }
@@ -251,17 +251,23 @@ void UnloadAssets(void){
  *  6 | P P P P P P P P
  *  7 | R N B Q K B N R
  */
-void InitBoard(void){
-    memset(board, EMPTY, sizeof(board));
+void InitBoard() {
+    memset(board, 0, sizeof(board));
 
     board[0][0] = (Piece){ROOK, BLACK_PIECE, false, false};
     board[0][1] = (Piece){KNIGHT, BLACK_PIECE, false, false};
-    board[0][2] = (Piece){BISHOP, BLACK_PIECE, false, false};
     board[0][3] = (Piece){QUEEN, BLACK_PIECE, false, false};
+    board[0][2] = (Piece){BISHOP, BLACK_PIECE, false, false};
     board[0][4] = (Piece){KING, BLACK_PIECE, false, false};
     board[0][5] = (Piece){BISHOP, BLACK_PIECE, false, false};
     board[0][6] = (Piece){KNIGHT, BLACK_PIECE, false, false};
     board[0][7] = (Piece){ROOK, BLACK_PIECE, false, false};
+
+    for (int c = 0; c < 8; c++) 
+        board[1][c] = (Piece){PAWN, BLACK_PIECE, false, false};
+
+    for (int c = 0; c < 8; c++) 
+        board[6][c] = (Piece){PAWN, WHITE_PIECE, false, false};
 
     board[7][0] = (Piece){ROOK, WHITE_PIECE, false, false};
     board[7][1] = (Piece){KNIGHT, WHITE_PIECE, false, false};
@@ -272,17 +278,9 @@ void InitBoard(void){
     board[7][6] = (Piece){KNIGHT, WHITE_PIECE, false, false};
     board[7][7] = (Piece){ROOK, WHITE_PIECE, false, false};
 
-
-    for(int col = 0 ; col < BOARD_SIZE ; col++){
-        board[1][col] = (Piece){PAWN, BLACK_PIECE, false, false};
-        board[6][col] = (Piece){PAWN, WHITE_PIECE, false, false};
-    }
-
-    for(int i = 2; i < BOARD_SIZE - 2 ; i++){
-        for(int j = 0 ; j < BOARD_SIZE ; j++){
-            board[i][j] = (Piece){EMPTY, NONE_PIECE, false, false};
-        }
-    }
+    for(int r = 2; r < 6; r++)
+        for(int c = 0; c < 8; c++)
+            board[r][c] = (Piece){EMPTY, NONE_PIECE, false, false};
 
     ResetEnPassant();
 }
@@ -297,29 +295,25 @@ void InitBoard(void){
  * - Selected Square (Yellow Highlights)
  * - Valid Moves (circles for empty squares, rings for captures)
  */
-void DrawBoard(void){
+void DrawBoard() {
+    for(int r = 0; r < BOARD_SIZE; r++) {
+        for(int c = 0; c < BOARD_SIZE; c++) {
+            Color sq = ((r + c) % 2 == 0) ? TILE_LIGHT : TILE_DARK;
+            DrawRectangle(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE, sq);
 
-    for(int i = 0 ; i < BOARD_SIZE ; i++){
-        for(int j = 0 ; j < BOARD_SIZE ; j++){
-
-            Color tile_color = !((i + j) % 2) ? TILE_LIGHT : TILE_DARK;
-            DrawRectangle(i * TILE_SIZE, j * TILE_SIZE, TILE_SIZE, TILE_SIZE, tile_color);
-
-            if(selectedRow != -1 && IsValidMove(selectedRow, selectedCol, i , j)){
-                if(!TestMoveForCheck(board[selectedRow][selectedCol].color, selectedRow, selectedCol, i , j)){
-
-                    int positionX = (i * TILE_SIZE) + TILE_SIZE / 2;
-                    int positionY = (i * TILE_SIZE) + TILE_SIZE / 2;
-
-                    if(board[i][j].type == EMPTY)
-                        DrawCircle(positionX, positionY, MOVE_CIRCLE_RADIUS, MOVE_CIRCLE_COLOR);
-                    else
-                        DrawCircleLines(positionX,positionY,CAPTURE_CIRCLE_RADIUS, MOVE_CIRCLE_COLOR);
+            if (selectedRow != -1 && IsValidMove(selectedRow, selectedCol, r, c)) {
+                if (!TestMoveForCheck(board[selectedRow][selectedCol].color, selectedRow, selectedCol, r, c)){
+                    if(board[r][c].type == EMPTY) {
+                        DrawCircle(c * TILE_SIZE + TILE_SIZE/2, r * TILE_SIZE + TILE_SIZE/2, 10, MOVE_CIRCLE_COLOR);
+                    }else{
+                        DrawCircleLines(c * TILE_SIZE + TILE_SIZE/2, r * TILE_SIZE + TILE_SIZE/2, TILE_SIZE/2 - 5, MOVE_CIRCLE_COLOR);
+                    }
                 }
             }
 
-            if(i == selectedRow && j == selectedCol)
-                DrawRectangle(i * TILE_SIZE, j * TILE_SIZE, TILE_SIZE, TILE_SIZE, SELECTED_TILE);
+            if (r == selectedRow && c == selectedCol) {
+                DrawRectangle(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE, Fade(YELLOW, 0.4f));
+            }
         }
     }
 }
@@ -328,38 +322,31 @@ void DrawBoard(void){
  * @brief Render all pieces on the board
  * Incudes special highlighting for kings in Check
  */
-void DrawPieces(void){
+void DrawPieces() {
     bool wCheck = IsInCheck(WHITE_PIECE);
     bool bCheck = IsInCheck(BLACK_PIECE);
 
-    for(int i = 0 ; i < BOARD_SIZE ; i++){
-        for(int j = 0 ; j < BOARD_SIZE ; j++){
-            Piece p = board[i][j];
-
-            if(p.type == EMPTY)
-                continue;
-
-            if(p.type == KING){
-
-                if((p.color == WHITE_PIECE && wCheck) || (p.color == BLACK_PIECE && bCheck)){
-                    DrawRectangle(j * TILE_SIZE, i * TILE_SIZE, TILE_SIZE, TILE_SIZE, CHECK_COLOR);
+    for (int r = 0; r < BOARD_SIZE; r++) {
+        for (int c = 0; c < BOARD_SIZE; c++) {
+            Piece p = board[r][c];
+            if (p.type == EMPTY) continue;
+            if (p.type == KING) {
+                if ((p.color == WHITE_PIECE && wCheck) || (p.color == BLACK_PIECE && bCheck)){
+                    DrawRectangle(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE, CHECK_COLOR);
                 }
             }
 
+            int colorIdx = (p.color == WHITE_PIECE) ? 0 : 1;
+            Texture2D tex = pieceTextures[colorIdx][p.type];
 
-            int colorID = (p.color == WHITE_PIECE) ? 0 : 1;
-            Texture2D texture = pieceTextures[colorID][p.type];
-
-            float scale = (float)TILE_SIZE / (float)texture.width * 0.85f;
+            float scale = (float)TILE_SIZE / (float)tex.width * 0.85f;
 
             Vector2 pos = {
-                i * TILE_SIZE + (TILE_SIZE - texture.width * scale) / 2,
-                j * TILE_SIZE + (TILE_SIZE - texture.width * scale) / 2
+                c * TILE_SIZE + (TILE_SIZE - tex.width * scale) / 2,
+                r * TILE_SIZE + (TILE_SIZE - tex.height * scale) / 2
             };
 
-            DrawTextureEx(texture, pos, 0, scale, WHITE);
-
-
+            DrawTextureEx(tex, pos, 0, scale, WHITE);
         }
     }
 }
