@@ -110,7 +110,7 @@ bool IsValidMove(int source_row, int source_column, int destination_row, int des
 bool MovePiece(int source_row, int source_column, int destination_row, int destination_column);
 bool IsInCheck(PieceColor color);
 bool HasAnyValidMove(PieceColor color);
-bool IsCheckMate(PieceColor Color);
+bool IsCheckmate(PieceColor color);
 bool IsPathClear(int source_row, int source_column, int destination_row, int destination_column);
 bool TestMoveForCheck(PieceColor color, int source_row, int source_column, int destination_row, int destination_column);
 void ResetEnPassant(void);
@@ -137,7 +137,6 @@ int main(void) {
         DrawRectangle(sideX, 0, 240, BOARD_SIZE * TILE_SIZE, GetColor(0x252525FF));
         DrawRectangle(sideX, 0, 5, BOARD_SIZE * TILE_SIZE, GetColor(0x333333FF));
 
-        // Title section
         DrawText("PROJECT CHESS", sideX + 30, 30, 22, GetColor(0x69923EFF));
         DrawRectangle(sideX + 40, 60, 140, 2, DARKGRAY);
 
@@ -164,6 +163,7 @@ int main(void) {
         }
 
         if (gameOver) {
+            _sleep(1000);
             DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.6f));
 
             Rectangle resBox = { sideX - 450, 200, 400, 200 };
@@ -649,7 +649,7 @@ bool HasAnyValidMove(PieceColor color) {
  * @param color Player color to check
  * @return true if player is checkmated
  */
-bool IsCheckmate(PieceColor color) {
+bool IsCheckmate(PieceColor color){
     return IsInCheck(color) && !HasAnyValidMove(color);
 }
 
