@@ -359,13 +359,10 @@ void DrawPieces() {
  * @brief Process mouse input for piece selection and movement
  * Implements two-step interaction: select piece -> select destination
  */
-void HandleInput(void){
+void HandleInput() {
+    if (gameOver) return;
 
-    if(gameOver)
-        return;
-
-    if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
-
+    if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
         int col = GetMouseX() / TILE_SIZE;
         int row = GetMouseY() / TILE_SIZE;
 
@@ -374,45 +371,30 @@ void HandleInput(void){
             return;
         }
 
-        if (selectedRow == -1) {
-
+        if(selectedRow == -1){
             if (board[row][col].color == turn) {
                 selectedRow = row;
                 selectedCol = col;
             }
-        }
-        else{
-
-            if(board[row][col].color == turn){
-
+        }else{
+            if (board[row][col].color == turn) {
                 selectedRow = row;
                 selectedCol = col;
-            }
-            else if(MovePiece(selectedRow, selectedCol, row, col)){
-
+            } else if (MovePiece(selectedRow, selectedCol, row, col)) {
                 turn = (turn == WHITE_PIECE) ? BLACK_PIECE : WHITE_PIECE;
-
-                if (IsCheckMate(turn)) {
-
+                if (IsCheckmate(turn)) {
                     gameOver = true;
-                    sprintf(gameResult, "Checkmate! %s Wins",
-                            (turn == BLACK_PIECE ? "White" : "Black"));
-                }
-                else if(!HasAnyValidMove(turn)){
-
+                    sprintf(gameResult, "Checkmate! %s Wins", (turn == BLACK_PIECE ? "White" : "Black"));
+                } else if (!HasAnyValidMove(turn)){
                     gameOver = true;
                     strcpy(gameResult, "Stalemate! Draw");
                 }
-
+                selectedRow = -1;
+            } else {
                 selectedRow = -1;
             }
-            else
-                selectedRow = -1;
-
         }
-
     }
-
 }
 
 //===========================================================================
@@ -430,17 +412,13 @@ void HandleInput(void){
  *
  * @return true if move follows piece movement rules
  */
-bool IsValidMove(int sr, int sc, int dr, int dc){
+bool IsValidMove(int sr, int sc, int dr, int dc) {
 
-    if(dr < 0 || dr >= BOARD_SIZE || dc < 0 || dc >= BOARD_SIZE)
-        return false;
-
-    if(sr == dr && sc == dc)
-        return false;
+    if (dr < 0 || dr >= BOARD_SIZE || dc < 0 || dc >= BOARD_SIZE) return false;
+    if (sr == dr && sc == dc) return false;
 
     Piece p = board[sr][sc];
-    if(board[dr][dc].color == p.color)
-        return false;
+    if (board[dr][dc].color == p.color) return false;
 
     int rDiff = dr - sr;
     int cDiff = dc - sc;
@@ -449,66 +427,61 @@ bool IsValidMove(int sr, int sc, int dr, int dc){
         case PAWN:{
             int dir = (p.color == WHITE_PIECE) ? -1 : 1;
 
-            if(!cDiff && rDiff == dir && board[dr][dc].type == EMPTY)
+            if (cDiff == 0 && rDiff == dir && board[dr][dc].type == EMPTY)
                 return true;
 
-            if(!p.moved && !cDiff && rDiff == 2 * dir && board[dr][dc].type == EMPTY && board[sr + dir][sc].type == EMPTY )
+            if (!p.moved && cDiff == 0 && rDiff == 2 * dir && board[dr][dc].type == EMPTY && board[sr + dir][sc].type == EMPTY)
                 return true;
 
-            if(abs(cDiff) == 1 && rDiff == dir){
-
-                if(board[dr][dc].type != EMPTY)
+            if (abs(cDiff) == 1 && rDiff == dir) {
+                if (board[dr][dc].type != EMPTY)
                     return true;
 
                 if (dr == enPassantTargetRow && dc == enPassantTargetCol && p.color != enPassantPawnColor){
-
                     int pawnRow = (p.color == WHITE_PIECE) ? dr + 1 : dr - 1;
-                    if (pawnRow >= 0 && pawnRow < BOARD_SIZE && board[pawnRow][dc].type == PAWN && board[pawnRow][dc].color != p.color){
+                    if (pawnRow >= 0 && pawnRow < BOARD_SIZE &&
+                        board[pawnRow][dc].type == PAWN &&
+                        board[pawnRow][dc].color != p.color) {
                         return true;
-
                     }
                 }
             }
-
             return false;
-            ;}
-        case ROOK:{
-            return (sr == dr || sc == dc && IsPathClear(sr, sc, dr, dc));
-            }
-        case KNIGHT:{
-            return ((abs(rDiff) == 2) && (abs(cDiff) == 1)) || ((abs(rDiff) == 1) && (abs(cDiff) == 2));
         }
-        case BISHOP:{
-            return (abs(rDiff) == abs(cDiff) && IsPathClear(sr, sc, dr, dc));
-        }
-        case QUEEN:{
-            return (sr == dr || sc == dc || abs(rDiff) == abs(cDiff)) && (IsPathClear(sr, sc, dr, dc));
-        }
+
+        case ROOK:
+            return (sr == dr || sc == dc) && IsPathClear(sr, sc, dr, dc);
+
+        case KNIGHT:
+            return (abs(rDiff) == 2 && abs(cDiff) == 1) || (abs(rDiff) == 1 && abs(cDiff) == 2);
+
+        case BISHOP:
+            return (abs(rDiff) == abs(cDiff)) && IsPathClear(sr, sc, dr, dc);
+
+        case QUEEN:
+            return (sr == dr || sc == dc || abs(rDiff) == abs(cDiff)) && IsPathClear(sr, sc, dr, dc);
+
         case KING:{
-            if(abs(rDiff) <= 1 && abs(cDiff) <= 1)
-                return true;
+            if(abs(rDiff) <= 1 && abs(cDiff) <= 1) return true;
 
-
-            if(!p.moved && !rDiff && abs(cDiff) == 2){
+            if(!p.moved && rDiff == 0 && abs(cDiff) == 2){
                 int rookCol = (cDiff > 0) ? 7 : 0;
 
-                /* Castling Conditions
-                1_ Rook Hasn't moved
-                2_ Path is clear
-                3_ King not currently in check
-                4_ King doesn't pass through attacked squares
-                */
+                // Castling conditions:
+                // 1. Rook hasn't moved
+                // 2. Path is clear
+                // 3. King not currently in check
+                // 4. King doesn't pass through attacked squares
+                if (board[sr][rookCol].type == ROOK && !board[sr][rookCol].moved && IsPathClear(sr, sc, sr, rookCol)){
 
-                if(board[sr][rookCol].type == ROOK && !board[sr][rookCol].moved && IsPathClear(sr, sc, sr, rookCol)){
-
-                    if(IsInCheck(p.color)) return false;
+                    if (IsInCheck(p.color)) return false;
 
                     return !TestMoveForCheck(p.color, sr, sc, sr, sc + (cDiff > 0 ? 1 : -1));
                 }
             }
             return false;
+        }
 
-            }
         default:
             return false;
     }
@@ -525,46 +498,65 @@ bool IsValidMove(int sr, int sc, int dr, int dc){
  *
  * @returns true if move was successfully executed
  */
-bool MovePiece(int sr, int sc, int dr, int dc){
-
-    if(!IsValidMove(sr, sc, dr, dc)) return false;
+bool MovePiece(int sr, int sc, int dr, int dc) {
+    // ========================================================================
+    // PRE-MOVE VALIDATION
+    // ========================================================================
+    if (!IsValidMove(sr, sc, dr, dc)) return false;
 
     Piece p = board[sr][sc];
 
-    if(TestMoveForCheck(p.color, sr, sc, dr, dc)) return false;
+    if (TestMoveForCheck(p.color, sr, sc, dr, dc)) return false;
 
+    // ========================================================================
+    // EN PASSANT CAPTURE HANDLING
+    // ========================================================================
     bool isEnPassantCapture = (p.type == PAWN && dr == enPassantTargetRow && dc == enPassantTargetCol && p.color != enPassantPawnColor);
 
-    if(isEnPassantCapture){
-        int captureRow = (p.color == WHITE_PIECE) ? dr + 1: dr - 1;
+    if (isEnPassantCapture) {
+        int captureRow = (p.color == WHITE_PIECE) ? dr + 1 : dr - 1;
         board[captureRow][dc] = (Piece){EMPTY, NONE_PIECE, false, false};
     }
 
-    if(p.type == PAWN && abs(dr - sr) == 2){
+    // ========================================================================
+    // EN PASSANT TARGET SETTING
+    // ========================================================================
+    if (p.type == PAWN && abs(dr - sr) == 2) {
         enPassantTargetRow = (sr + dr) / 2;
         enPassantTargetCol = sc;
         enPassantPawnColor = p.color;
-    }
-    else{
+    } else {
         ResetEnPassant();
     }
 
-    if(p.type == PAWN){
-        if((p.color == WHITE_PIECE && dr == 0) || (p.color == BLACK_PIECE && dr == 7))
+    // ========================================================================
+    // PAWN PROMOTION (auto-queen for simplicity) :)
+    // ========================================================================
+    if (p.type == PAWN) {
+        if ((p.color == WHITE_PIECE && dr == 0) ||
+            (p.color == BLACK_PIECE && dr == 7)) {
             p.type = QUEEN;
+        }
     }
 
-    if(p.type == KING && abs(dc - sc) == 2){
-
+    // ========================================================================
+    // CASTLING HANDLING
+    // ========================================================================
+    if (p.type == KING && abs(dc - sc) == 2) {
+        // Determine rook positions
         int rookCol = (dc > sc) ? 7 : 0;
         int newRookCol = (dc > sc) ? dc - 1 : dc + 1;
 
         board[dr][newRookCol] = board[sr][rookCol];
         board[dr][newRookCol].moved = true;
 
+
         board[sr][rookCol] = (Piece){EMPTY, NONE_PIECE, false, false};
     }
 
+    // ========================================================================
+    // FINAL BOARD UPDATE
+    // ========================================================================
     p.moved = true;
     board[dr][dc] = p;
     board[sr][sc] = (Piece){EMPTY, NONE_PIECE, false, false};
@@ -578,40 +570,52 @@ bool MovePiece(int sr, int sc, int dr, int dc){
  *
  * @return true if king is under attack
  */
-bool IsInCheck(PieceColor color){
+bool IsInCheck(PieceColor color) {
     int kr = -1, kc = -1;
 
-    for(int i = 0; i < 8 ; i++){
-        for(int j = 0 ; j < 8 ; j++){
-            if(board[i][j].type == KING && board[i][j].color == color){
-                kr = i;
-                kc = j;
+    // ========================================================================
+    // FIND THE KING
+    // ========================================================================
+    for (int r = 0; r < 8; r++) {
+        for (int c = 0; c < 8; c++) {
+            if (board[r][c].type == KING && board[r][c].color == color) {
+                kr = r;
+                kc = c;
                 break;
             }
         }
-        if(kr != -1) break;
+        if (kr != -1) break;
     }
 
-    for (int i = 0; i < 8; i++) {
-        for (int j = 0; j < 8; j++) {
-            Piece p = board[i][j];
+    if (kr == -1) return false;
+
+    // ========================================================================
+    // CHECK FOR ATTACKING PIECES
+    // ========================================================================
+    for (int r = 0; r < 8; r++) {
+        for (int c = 0; c < 8; c++) {
+            Piece p = board[r][c];
 
             if (p.type == EMPTY || p.color == color) continue;
 
+            // ================================================================
+            // SPECIAL CASE: PAWN ATTACKS
+            // ================================================================
             if (p.type == PAWN) {
                 int dir = (p.color == WHITE_PIECE) ? -1 : 1;
-
-                if(i + dir == kr && abs(j - kc) == 1)
+                if (r + dir == kr && abs(c - kc) == 1)
                     return true;
             }
-            else if(IsValidMove(i, j, kr, kc)){
+            // ================================================================
+            // OTHER PIECES: USE VALID MOVE CHECK
+            // ================================================================
+            else if (IsValidMove(r, c, kr, kc)) {
                 return true;
             }
         }
     }
 
     return false;
-
 }
 
 /**
@@ -621,16 +625,13 @@ bool IsInCheck(PieceColor color){
  *
  * @return true if at least one legal move exists
  */
-bool HasAnyValidMove(PieceColor color){
-
-    for(int i = 0; i < 8; i++){
-        for(int j = 0; j < 8; j++){
-            if(board[i][j].color == color){
-
+bool HasAnyValidMove(PieceColor color) {
+    for (int r = 0; r < 8; r++) {
+        for (int c = 0; c < 8; c++) {
+            if (board[r][c].color == color) {
                 for(int dr = 0; dr < 8; dr++){
                     for(int dc = 0; dc < 8; dc++){
-
-                        if (IsValidMove(i, j, dr, dc) && !TestMoveForCheck(color, i, j, dr, dc)){
+                        if (IsValidMove(r, c, dr, dc) && !TestMoveForCheck(color, r, c, dr, dc)) {
                             return true;
                         }
                     }
@@ -639,6 +640,17 @@ bool HasAnyValidMove(PieceColor color){
         }
     }
     return false;
+}
+
+/**
+ * IsCheckmate(): Determine if player is in checkmate
+ * Checkmate = King is in check AND has no legal moves
+ *
+ * @param color Player color to check
+ * @return true if player is checkmated
+ */
+bool IsCheckmate(PieceColor color) {
+    return IsInCheck(color) && !HasAnyValidMove(color);
 }
 
 /**
@@ -662,8 +674,7 @@ bool IsCheckMate(PieceColor color){
  *
  * @return true if all intermediate squares are empty
  */
-bool IsPathClear(int sr, int sc, int dr, int dc){
-
+bool IsPathClear(int sr, int sc, int dr, int dc) {
     int rs = (dr > sr) ? 1 : (dr < sr) ? -1 : 0;
     int cs = (dc > sc) ? 1 : (dc < sc) ? -1 : 0;
 
@@ -687,47 +698,55 @@ bool IsPathClear(int sr, int sc, int dr, int dc){
  *
  * @return true if move would leave king in check
  */
-bool TestMoveForCheck(PieceColor color, int sr, int sc, int dr, int dc){
+bool TestMoveForCheck(PieceColor color, int sr, int sc, int dr, int dc) {
+
     Piece src = board[sr][sc];
-    Piece dest = board[dr][dc];
-
+    Piece dst = board[dr][dc];
     Piece capturedPawn = {EMPTY, NONE_PIECE, false, false};
-
     int capturedRow = -1, capturedCol = -1;
 
+    // ========================================================================
+    // EN PASSANT CAPTURE SIMULATION
+    // ========================================================================
     bool isEP = (src.type == PAWN && dr == enPassantTargetRow && dc == enPassantTargetCol && src.color != enPassantPawnColor);
 
-    if(isEP){
+    if (isEP) {
         capturedRow = (src.color == WHITE_PIECE) ? dr + 1 : dr - 1;
         capturedCol = dc;
         capturedPawn = board[capturedRow][capturedCol];
         board[capturedRow][capturedCol] = (Piece){EMPTY, NONE_PIECE, false, false};
     }
 
+    // ========================================================================
+    // TEMPORARY MOVE EXECUTION
+    // ========================================================================
     board[dr][dc] = src;
     board[sr][sc] = (Piece){EMPTY, NONE_PIECE, false, false};
 
+    // ========================================================================
+    // CHECK DETECTION
+    // ========================================================================
     bool inCheck = IsInCheck(color);
 
+    // ========================================================================
+    // BOARD RESTORATION
+    // ========================================================================
     board[sr][sc] = src;
-    board[dr][dc] = dest;
+    board[dr][dc] = dst;
 
-    if(isEP){
+    if (isEP) {
         board[capturedRow][capturedCol] = capturedPawn;
     }
 
     return inCheck;
-
 }
 
 /**
  * @brief Clear en Passant tracking variables
  * Called after each move (except when a pawn moves two squares)
  */
-void ResetEnPassant(void){
-
+void ResetEnPassant() {
     enPassantTargetRow = -1;
     enPassantTargetCol = -1;
     enPassantPawnColor = NONE_PIECE;
-
 }
