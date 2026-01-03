@@ -3,8 +3,14 @@
 * Purpose: A complete chess implementation with all standard rules including
 *          en passant and castling, using Raylib for graphics rendering.
 *          Inspire from Chess.com
-* Author: Faseeh-Ur-Rehman
+* Author 1: Faseeh-Ur-Rehman
 * Roll Number: FA25-BCS-019
+
+* Author 2: Asad-Ullah
+* Roll Number: FA25-BCS-028
+
+* Author 1: Ayesha Ahmed
+* Roll Number: FA25-BCS-040
 
 * Key Features:
 * - Complete FIDE (Fédération Internationale des Échecs) chess rules implementation
