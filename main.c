@@ -7,12 +7,6 @@
 * Author 1: Faseeh-Ur-Rehman
 * Roll Number: FA25-BCS-019
 
-* Author 2: Asad-Ullah
-* Roll Number: FA25-BCS-028
-
-* Author 3: Ayesha Ahmed
-* Roll Number: FA25-BCS-040
-
 * Key Features:
 * - Complete FIDE (Fédération Internationale des Échecs) chess rules implementation
 * - En passant and castling with proper validation
@@ -21,7 +15,6 @@
 * - Restart Functionality
 
 * Features that can and will be added Later:
-* - Choice to promote pawn to other pieces ( right now its Queen only )
 * - Choice to rotate the board after each turn
 * - Choice for piece and board design
 * - Algebraic notation panel at the side bar to replay the game
@@ -92,6 +85,10 @@ int selectedRow = -1;
 int selectedCol = -1;
 PieceColor turn = WHITE_PIECE;
 bool gameOver = false;
+bool promotionActive = false;
+int promotionRow = -1;
+int promotionCol = -1;
+PieceColor promotionColor = NONE_PIECE;
 
 char gameResult[BUFFER_SIZE] = {0};
 
@@ -111,6 +108,7 @@ void UnloadAssets(void);
 void DrawBoard(void);
 void DrawPieces(void);
 void HandleInput(void);
+void DrawPromotionMenu(void);
 
 /*============ Move Validations ======================*/
 bool IsValidMove(int source_row, int source_column, int destination_row, int destination_column);
@@ -138,6 +136,7 @@ int main(void) {
         ClearBackground(GetColor(0x181818FF));
         DrawBoard();
         DrawPieces();
+        DrawPromotionMenu();
 
         int sideX = BOARD_SIZE * TILE_SIZE;
 
@@ -170,8 +169,9 @@ int main(void) {
         }
 
         if (gameOver) {
-            _sleep(1000);
             DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Fade(BLACK, 0.6f));
+
+            _sleep(1000);
 
             Rectangle resBox = { sideX - 450, 200, 400, 200 };
             DrawRectangleRounded(resBox, 0.1, 10, GetColor(0x202020FF));
@@ -367,6 +367,7 @@ void DrawPieces() {
  * Implements two-step interaction: select piece -> select destination
  */
 void HandleInput() {
+    if(promotionActive) return;
     if (gameOver) return;
 
     if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
@@ -388,7 +389,7 @@ void HandleInput() {
                 selectedRow = row;
                 selectedCol = col;
             } else if (MovePiece(selectedRow, selectedCol, row, col)) {
-                turn = (turn == WHITE_PIECE) ? BLACK_PIECE : WHITE_PIECE;
+                    turn = (turn == WHITE_PIECE) ? BLACK_PIECE : WHITE_PIECE;
                 if (IsCheckmate(turn)) {
                     gameOver = true;
                     sprintf(gameResult, "Checkmate! %s Wins", (turn == BLACK_PIECE ? "White" : "Black"));
@@ -536,15 +537,18 @@ bool MovePiece(int sr, int sc, int dr, int dc) {
         ResetEnPassant();
     }
 
-    // ========================================================================
-    // PAWN PROMOTION (auto-queen for simplicity) :)
-    // ========================================================================
-    if (p.type == PAWN) {
-        if ((p.color == WHITE_PIECE && dr == 0) ||
-            (p.color == BLACK_PIECE && dr == 7)) {
-            p.type = QUEEN;
-        }
-    }
+// ======================== 
+// PAWN PROMOTION TRIGGER 
+// ========================
+if (p.type == PAWN &&
+   ((p.color == WHITE_PIECE && dr == 0) ||
+    (p.color == BLACK_PIECE && dr == 7))) {
+
+    promotionActive = true;
+    promotionRow = dr;
+    promotionCol = dc;
+    promotionColor = p.color;
+}
 
     // ========================================================================
     // CASTLING HANDLING
@@ -756,4 +760,62 @@ void ResetEnPassant() {
     enPassantTargetRow = -1;
     enPassantTargetCol = -1;
     enPassantPawnColor = NONE_PIECE;
+}
+
+/**
+ * @brief Draws the Promotion Menu for Piece Selection 
+ */
+void DrawPromotionMenu(){
+
+    if (!promotionActive) return;
+
+    DrawRectangle(0, 0,
+        GetScreenWidth(),
+        GetScreenHeight(),
+        Fade(BLACK, 0.6f));
+
+    Rectangle box = {
+        BOARD_SIZE*TILE_SIZE/2 - 160,
+        BOARD_SIZE*TILE_SIZE/2 - 60,
+        320,
+        120
+    };
+
+    DrawRectangleRounded(box, 0.2f, 10, GetColor(0x202020FF));
+    DrawText("Choose Promotion", box.x + 50, box.y + 10, 20, RAYWHITE);
+
+    PieceType options[4] = {QUEEN, ROOK, BISHOP, KNIGHT};
+
+    for (int i = 0; i < 4; i++) {
+
+        Rectangle slot = {
+            box.x + 20 + i*70,
+            box.y + 50,
+            60,
+            60
+        };
+
+        DrawRectangleRounded(slot, 0.2f, 10, DARKGRAY);
+
+        int colorIdx = (promotionColor == WHITE_PIECE) ? 0 : 1;
+        Texture2D tex = pieceTextures[colorIdx][options[i]];
+
+        float scale = 50.0f / tex.width;
+
+        Vector2 pos = {
+            slot.x + (60 - tex.width*scale)/2,
+            slot.y + (60 - tex.height*scale)/2
+        };
+
+        DrawTextureEx(tex, pos, 0, scale, WHITE);
+
+        if (CheckCollisionPointRec(GetMousePosition(), slot)
+            && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+
+            board[promotionRow][promotionCol].type = options[i];
+
+            promotionActive = false;
+        }
+
+    }
 }
